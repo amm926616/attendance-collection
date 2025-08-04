@@ -44,7 +44,7 @@ export default function AdminPage() {
 
   // Copy URL to clipboard helper
   function copyLink(classId: string) {
-    const url = `${window.location.origin}/${classId}`;
+    const url = `${window.location.origin}/classes/${classId}`;
     navigator.clipboard.writeText(url);
     alert(`Copied link to clipboard:\n${url}`);
   }

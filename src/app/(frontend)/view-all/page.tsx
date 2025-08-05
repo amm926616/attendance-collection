@@ -9,28 +9,67 @@ interface Checkin {
   timestamp: string;
 }
 
+const ADMIN_PASSWORD_KEY = "adminPassword";
+
 export default function ViewAllPage() {
   const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
-    async function fetchCheckins() {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await fetch("/api/checkin/all");
-        if (!res.ok) throw new Error("Failed to fetch check-ins");
-        const data = await res.json();
-        setCheckins(data.checkins);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
+    const storedPassword = localStorage.getItem(ADMIN_PASSWORD_KEY);
+    if (!storedPassword) {
+      const userInput = prompt("Enter admin password:");
+      if (userInput) {
+        setPassword(userInput);
+        localStorage.setItem(ADMIN_PASSWORD_KEY, userInput);
       }
+    } else {
+      setPassword(storedPassword);
     }
-    fetchCheckins();
   }, []);
+
+  useEffect(() => {
+    if (!password) return;
+    fetchCheckins();
+  }, [password]);
+
+  async function fetchCheckins() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/checkin/all");
+      if (!res.ok) throw new Error("Failed to fetch check-ins");
+      const data = await res.json();
+      setCheckins(data.checkins);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    const confirmDelete = confirm(
+      "Are you sure you want to delete this record?",
+    );
+    if (!confirmDelete) return;
+
+    const res = await fetch(`/api/checkin/delete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id, password }),
+    });
+
+    if (res.ok) {
+      setCheckins((prev) => prev.filter((entry) => entry._id !== id));
+    } else {
+      alert("Failed to delete. Wrong password or server error.");
+    }
+  }
 
   // Group checkins by classId
   const grouped = checkins.reduce<Record<string, Checkin[]>>((acc, curr) => {
@@ -39,6 +78,7 @@ export default function ViewAllPage() {
     return acc;
   }, {});
 
+  if (!password) return <p className="text-center mt-20">Password required.</p>;
   if (loading) return <p className="text-center mt-20">Loading...</p>;
   if (error) return <p className="text-center mt-20 text-red-600">{error}</p>;
 
@@ -62,12 +102,20 @@ export default function ViewAllPage() {
             {records.map(({ _id, name, timestamp }) => (
               <li
                 key={_id}
-                className="py-1 border-b border-gray-200 dark:border-gray-700 last:border-0"
+                className="flex justify-between items-center py-1 border-b border-gray-200 dark:border-gray-700 last:border-0"
               >
-                <span className="font-semibold">{name}</span> -{" "}
-                <time dateTime={timestamp}>
-                  {new Date(timestamp).toLocaleString()}
-                </time>
+                <span>
+                  <strong>{name}</strong> —{" "}
+                  <time className="text-sm" dateTime={timestamp}>
+                    {new Date(timestamp).toLocaleString()}
+                  </time>
+                </span>
+                <button
+                  onClick={() => handleDelete(_id)}
+                  className="text-red-500 hover:underline text-sm"
+                >
+                  Delete
+                </button>
               </li>
             ))}
           </ul>

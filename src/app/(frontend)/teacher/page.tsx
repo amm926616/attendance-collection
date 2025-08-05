@@ -2,11 +2,34 @@
 
 import { useEffect, useState } from "react";
 
+const ADMIN_PASSWORD_KEY = "adminPassword";
+
 export default function AdminPage() {
   const [className, setClassName] = useState("");
   const [classes, setClasses] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [password, setPassword] = useState("");
+  const [copiedClassId, setCopiedClassId] = useState<string | null>(null);
+
+  // ask for password once
+  useEffect(() => {
+    const storedPassword = localStorage.getItem(ADMIN_PASSWORD_KEY);
+    if (!storedPassword) {
+      const input = prompt("Enter admin password:");
+      if (input) {
+        setPassword(input);
+        localStorage.setItem(ADMIN_PASSWORD_KEY, input);
+      }
+    } else {
+      setPassword(storedPassword);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!password) return;
+    fetchClasses();
+  }, [password]);
 
   async function fetchClasses() {
     const res = await fetch("/api/classes");
@@ -16,9 +39,24 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => {
-    fetchClasses();
-  }, []);
+  async function handleDeleteClass(classId: string) {
+    const confirmDelete = confirm(
+      `Delete ALL attendance records for class "${classId}"? This cannot be undone.`,
+    );
+    if (!confirmDelete) return;
+
+    const res = await fetch("/api/classes/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ classId, password }),
+    });
+
+    if (res.ok) {
+      setClasses((prev) => prev.filter((entry) => entry !== classId));
+    } else {
+      alert("Failed to delete class. Wrong password or server error.");
+    }
+  }
 
   async function handleAddClass() {
     setError("");
@@ -42,12 +80,14 @@ export default function AdminPage() {
     }
   }
 
-  // Copy URL to clipboard helper
   function copyLink(classId: string) {
     const url = `${window.location.origin}/classes/${classId}`;
     navigator.clipboard.writeText(url);
-    alert(`Copied link to clipboard:\n${url}`);
+    setCopiedClassId(classId);
+    setTimeout(() => setCopiedClassId(null), 2000);
   }
+
+  if (!password) return <p className="text-center mt-20">Password required.</p>;
 
   return (
     <main className="max-w-lg mx-auto mt-16 p-6 bg-white dark:bg-gray-900 rounded-md shadow-md">
@@ -89,12 +129,24 @@ export default function AdminPage() {
               <span className="font-mono text-gray-900 dark:text-gray-100">
                 {cls}
               </span>
-              <button
-                onClick={() => copyLink(cls)}
-                className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition"
-              >
-                Copy Link
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => copyLink(cls)}
+                  className={`px-3 py-1 text-sm text-white rounded transition ${
+                    copiedClassId === cls
+                      ? "bg-green-800"
+                      : "bg-green-600 hover:bg-green-700"
+                  }`}
+                >
+                  {copiedClassId === cls ? "Copied!" : "Copy Link"}
+                </button>
+                <button
+                  onClick={() => handleDeleteClass(cls)}
+                  className="text-sm text-red-600 hover:underline"
+                >
+                  Delete Class
+                </button>
+              </div>
             </li>
           ))
         )}

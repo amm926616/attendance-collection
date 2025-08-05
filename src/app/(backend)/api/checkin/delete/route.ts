@@ -2,8 +2,6 @@ import { connectToDatabase } from "@/app/lib/mongodb";
 import { NextResponse } from "next/server";
 import mongoose, { Schema, model, models } from "mongoose";
 
-const ADMIN_SECRET = process.env.ADMIN_PASSWORD || "changeme";
-
 // --- Checkin Model ---
 interface CheckinDoc extends mongoose.Document {
   name: string;
@@ -27,11 +25,7 @@ const ClassSchema = new Schema<ClassDoc>({
 const Class = models.Class || model<ClassDoc>("Class", ClassSchema);
 
 export async function POST(req: Request) {
-  const { classId, password } = await req.json();
-
-  if (password !== ADMIN_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { classId } = await req.json();
 
   if (!classId || typeof classId !== "string") {
     return NextResponse.json({ error: "Invalid classId" }, { status: 400 });
